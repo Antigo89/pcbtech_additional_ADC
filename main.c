@@ -9,6 +9,7 @@ Student: antigo1989@gmail.com
 
 //global values
 volatile uint32_t counter = 0;
+volatile uint8_t user_flags = 0;
 
 /*********************************main************************************/
 int main(void) {
@@ -35,15 +36,13 @@ int main(void) {
 void EXTI15_10_IRQHandler(void){
   switch(EXTI->PR & (EXTI_PR_PR10|EXTI_PR_PR11|EXTI_PR_PR12)){
     case EXTI_PR_PR10:
-      ADC1->JSQR &= ~(ADC_JSQR_JSQ4);
+      user_flags = CH0;
       break;
     case EXTI_PR_PR11:
-      ADC1->JSQR &= ~(ADC_JSQR_JSQ4);
-      ADC1->JSQR |= (4 << ADC_JSQR_JSQ4_Pos);
+      user_flags = CH4;
       break;
     case EXTI_PR_PR12:
-      ADC1->JSQR &= ~(ADC_JSQR_JSQ4);
-      ADC1->JSQR |= (6 << ADC_JSQR_JSQ4_Pos);
+      user_flags = CH6;
       break;
   }
   EXTI->PR |= EXTI_PR_PR10|EXTI_PR_PR11|EXTI_PR_PR12;
@@ -51,8 +50,24 @@ void EXTI15_10_IRQHandler(void){
 
 void ADC_IRQHandler(void){
   if(ADC1->SR & ADC_SR_JEOC){
-    counter = ADC1->JDR1;
-    DAC->DHR12R2 = ADC1->JDR1;
+    switch(user_flags){
+      case CH0:
+        counter = ADC1->JDR1;
+        DAC->DHR12R2 = ADC1->JDR1;
+        break;
+      case CH4:
+        counter = ADC1->JDR2;
+        DAC->DHR12R2 = ADC1->JDR3;
+        break;
+      case CH6:
+        counter = ADC1->JDR3;
+        DAC->DHR12R2 = ADC1->JDR3;
+        break;
+      default:
+        counter = DEF_OUT;
+        DAC->DHR12R2 = DEF_OUT;
+        break;
+    }
     DAC->SWTRIGR |= DAC_SWTRIGR_SWTRIG2;
     ADC1->SR &= ~(ADC_SR_JEOC);
   }
@@ -62,6 +77,8 @@ void ADC_IRQHandler(void){
 void DAC_Init(void){
   RCC->APB1ENR |= RCC_APB1ENR_DACEN;
   DAC->CR |= DAC_CR_BOFF2|DAC_CR_EN2;
+  DAC->DHR12R2 = DEF_OUT;
+  DAC->SWTRIGR |= DAC_SWTRIGR_SWTRIG2;
 }
 
 void ADC1_Init(void){
@@ -72,10 +89,10 @@ void ADC1_Init(void){
   //ADC1
   ADC1->SMPR2 |= ADC_SMPR2_SMP0_0|ADC_SMPR2_SMP4_0|ADC_SMPR2_SMP6_0;
   ADC1->JSQR &= ~(ADC_JSQR_JL); //1 measurement
-  ADC1->JSQR |= (0 << ADC_JSQR_JSQ4_Pos); //CH0
+  ADC1->JSQR |= (0b10<<ADC_JSQR_JL_Pos)|(6 << ADC_JSQR_JSQ4_Pos)|(4 << ADC_JSQR_JSQ3_Pos)|(0 << ADC_JSQR_JSQ2_Pos); //3 measurements CH0, CH4,CH6
   ADC1->CR1 &= ~(ADC_CR1_RES); //12bit
   ADC1->CR2 |= ADC_CR2_JEXTEN_1|(0b0011<<ADC_CR2_JEXTSEL_Pos); //EXT Trigger TIM2
-  ADC1->CR1 |= ADC_CR1_JEOCIE; //Interrupt enable
+  ADC1->CR1 |= ADC_CR1_JEOCIE|ADC_CR1_SCAN; //Interrupt enable, SCAN J-channel
   NVIC_EnableIRQ(ADC_IRQn);
   ADC1->CR2 |= ADC_CR2_ADON; //ADC enable
 }

@@ -6,8 +6,13 @@
 #include "stm32f4xx.h"
 
 //Settings
-#define LIM_MIN 429
-#define LIM_MAX 3276
+//4095/3,3*1.0=1241
+#define DEF_OUT 1241
+
+//user flags
+#define CH0 1
+#define CH4 2
+#define CH6 3
 
 //prototype function
 void RCC_Init(void);
